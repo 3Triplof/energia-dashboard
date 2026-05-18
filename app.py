@@ -12,7 +12,10 @@ st.set_page_config(
 
 st.title("⚡ Dashboard de Energia")
 
-# CACHE
+# =========================
+# CARREGAMENTO
+# =========================
+
 @st.cache_data(ttl=3600)
 def carregar():
     return carregar_dados()
@@ -38,25 +41,47 @@ colunas_numericas = [
 for coluna in colunas_numericas:
     df[coluna] = pd.to_numeric(df[coluna])
 
-# NOVAS MÉTRICAS
 df['custo_kwh'] = df['valor'] / df['Kwh']
 
 df['impostos'] = df['pis/confins'] + df['icms']
 
-# ORDENA
+df['ano'] = df['data'].dt.year
+
+df['mes'] = df['data'].dt.month
+
+df['mes_nome'] = df['data'].dt.strftime('%b')
+
 df = df.sort_values('data')
+
+# =========================
+# FILTROS
+# =========================
+
+st.sidebar.header("Filtros")
+
+anos = sorted(df['ano'].unique())
+
+anos_selecionados = st.sidebar.multiselect(
+    "Selecione os anos",
+    anos,
+    default=anos
+)
+
+df_filtrado = df[
+    df['ano'].isin(anos_selecionados)
+]
 
 # =========================
 # KPIs
 # =========================
 
-consumo_total = df['Kwh'].sum()
+consumo_total = df_filtrado['Kwh'].sum()
 
-valor_total = df['valor'].sum()
+valor_total = df_filtrado['valor'].sum()
 
-media_mensal = df['Kwh'].mean()
+media_mensal = df_filtrado['Kwh'].mean()
 
-custo_medio = df['custo_kwh'].mean()
+custo_medio = df_filtrado['custo_kwh'].mean()
 
 col1, col2, col3, col4 = st.columns(4)
 
@@ -81,15 +106,16 @@ col4.metric(
 )
 
 # =========================
-# GRÁFICO CONSUMO
+# CONSUMO HISTÓRICO
 # =========================
 
 fig1 = px.line(
-    df,
+    df_filtrado,
     x='data',
     y='Kwh',
-    title='Consumo ao Longo do Tempo',
-    markers=True
+    color='ano',
+    markers=True,
+    title='Consumo ao Longo do Tempo'
 )
 
 st.plotly_chart(
@@ -98,14 +124,17 @@ st.plotly_chart(
 )
 
 # =========================
-# GRÁFICO VALOR
+# COMPARAÇÃO ANUAL
 # =========================
 
+comparacao = df_filtrado.groupby('ano')['Kwh'].sum().reset_index()
+
 fig2 = px.bar(
-    df,
-    x='data',
-    y='valor',
-    title='Valor da Conta'
+    comparacao,
+    x='ano',
+    y='Kwh',
+    text_auto=True,
+    title='Comparação Anual de Consumo'
 )
 
 st.plotly_chart(
@@ -114,27 +143,41 @@ st.plotly_chart(
 )
 
 # =========================
-# IMPOSTOS
+# HEATMAP
 # =========================
 
-fig3 = px.pie(
-    values=[
-        df['icms'].sum(),
-        df['pis/confins'].sum(),
-        df['iluPublica'].sum(),
-        df['outros'].sum()
-    ],
-    names=[
-        'ICMS',
-        'PIS/COFINS',
-        'Iluminação Pública',
-        'Outros'
-    ],
-    title='Distribuição de Taxas'
+heatmap = df_filtrado.pivot_table(
+    values='Kwh',
+    index='ano',
+    columns='mes_nome',
+    aggfunc='sum'
+)
+
+fig3 = px.imshow(
+    heatmap,
+    text_auto=True,
+    aspect="auto",
+    title='Heatmap de Consumo'
 )
 
 st.plotly_chart(
     fig3,
+    use_container_width=True
+)
+
+# =========================
+# VALOR DA CONTA
+# =========================
+
+fig4 = px.bar(
+    df_filtrado,
+    x='data',
+    y='valor',
+    title='Valor da Conta'
+)
+
+st.plotly_chart(
+    fig4,
     use_container_width=True
 )
 
@@ -145,6 +188,6 @@ st.plotly_chart(
 st.subheader("📋 Dados")
 
 st.dataframe(
-    df,
+    df_filtrado,
     use_container_width=True
 )

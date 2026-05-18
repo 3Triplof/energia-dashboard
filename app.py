@@ -1,166 +1,150 @@
 import streamlit as st
-import os, glob, PyPDF2, requests, base64
-from PIL import Image
+import pandas as pd
+import plotly.express as px
 
-st.set_page_config(layout="wide")
+from services.sheets import carregar_dados
 
-st.title("🤖 Tutor Livros - GOOGLE VISION + DIAGNÓSTICO")
-st.markdown("**Seu assistente de estudos!**")
+st.set_page_config(
+    page_title="Dashboard Energia",
+    page_icon="⚡",
+    layout="wide"
+)
 
-VISION_KEY = st.secrets.get("GOOGLE_VISION_KEY", "")
+st.title("⚡ Dashboard de Energia")
 
-def diagnosticar_vision_key():
-    """Testa se API Key funciona"""
-    if not VISION_KEY or VISION_KEY == "":
-        return "❌ Vazio - configure Secrets"
-    if not VISION_KEY.startswith("AIza"):
-        return "❌ Formato inválido"
-    return "✅ OK!"
+# CACHE
+@st.cache_data(ttl=3600)
+def carregar():
+    return carregar_dados()
 
-def google_vision_ocr(image_path):
-    """OCR com tratamento de TODOS os erros"""
-    try:
-        # Lê imagem
-        with open(image_path, "rb") as f:
-            image_content = base64.b64encode(f.read()).decode()
-        
-        url = f"https://vision.googleapis.com/v1/images:annotate?key={VISION_KEY}"
-        payload = {
-            "requests": [{
-                "image": {"content": image_content},
-                "features": [{"type": "TEXT_DETECTION"}],
-                "imageContext": {"languageHints": ["pt"]}
-            }]
-        }
-        
-        response = requests.post(url, json=payload, timeout=30)
-        data = response.json()
-        
-        # 🔧 TRATAMENTO DE ERROS
-        print(f"Status: {response.status_code}")
-        print(f"Resposta: {data}")
-        
-        if response.status_code != 200:
-            return f"❌ HTTP {response.status_code}: {data.get('error', {}).get('message', 'Erro desconhecido')}"
-        
-        if 'error' in data:
-            return f"❌ API Error: {data['error'].get('message', 'Erro genérico')}"
-        
-        if 'responses' not in data or not data['responses']:
-            return "❌ Sem 'responses' na resposta - API falhou"
-        
-        response_data = data['responses'][0]
-        if 'error' in response_data:
-            return f"❌ Imagem Error: {response_data['error'].get('message', 'Erro na imagem')}"
-        
-        texto = response_data.get('fullTextAnnotation', {}).get('text', 'Sem texto detectado')
-        return texto.strip()[:5000] if texto else "Texto vazio"
-        
-    except Exception as e:
-        return f"❌ Exceção: {str(e)}"
+df = carregar()
 
-def extrair_pdf(pdf_path):
-    try:
-        with open(pdf_path, 'rb') as f:
-            pdf = PyPDF2.PdfReader(f)
-            texto = ""
-            for page in pdf.pages[:2]:
-                texto += page.extract_text() or ""
-        return texto[:3000]
-    except:
-        return "Erro PDF"
+# =========================
+# TRATAMENTO
+# =========================
 
-def buscar_no_texto(texto, pergunta):
-    """Busca inteligente no texto"""
-    linhas = [l for l in texto.split('\n') if any(p in l.lower() for p in pergunta.lower().split())]
-    return '\n'.join(linhas[:10]) if linhas else "Não encontrei no capítulo :("
+df['data'] = pd.to_datetime(df['data'])
 
-# Sidebar
-materias = {}
-if os.path.exists("materias"):
-    for dir in os.listdir("materias"):
-        path = f"materias/{dir}"
-        if os.path.isdir(path):
-            files = glob.glob(f"{path}/*.jpg") + glob.glob(f"{path}/*.png") + glob.glob(f"{path}/*.pdf")
-            if files:
-                materias[dir.title()] = [os.path.basename(f) for f in files]
+colunas_numericas = [
+    'Kwh',
+    'valor',
+    'pis/confins',
+    'icms',
+    'iluPublica',
+    'tarifa',
+    'outros'
+]
 
-if materias:
-    with st.sidebar:
-        st.header("📚 Matérias")
-        materia = st.selectbox("Matéria:", list(materias.keys()))
-        arquivos = materias[materia]
-        arquivo = st.selectbox("Foto:", arquivos)
-        
-        # Status API Key
-        st.markdown("---")
-        status = diagnosticar_vision_key()
-        st.caption(f"🔑 Vision API: **{status}**")
-        
-        if st.button("🧿 GOOGLE OCR", use_container_width=True):
-            caminho = f"materias/{materia.lower()}/{arquivo}"
-            with st.spinner("Testando Google Vision..."):
-                if arquivo.lower().endswith(('.jpg', '.png')):
-                    texto = google_vision_ocr(caminho)
-                else:
-                    texto = extrair_pdf(caminho)
-                
-                st.session_state.texto = texto
-                st.session_state.arquivo = arquivo
-                st.session_state.materia = materia
-                st.rerun()
-    
-    # ===== RESULTADO COM MOSTRAR/OCULTAR =====
-    if "texto" in st.session_state:
-        st.subheader(f"📄 {st.session_state.arquivo}")
-        
-        # Diagnóstico colorido
-        texto = st.session_state.texto
-        if texto.startswith("❌"):
-            st.error(texto)
-        elif "HTTP" in texto or "Error" in texto:
-            st.warning(texto)
-        else:
-            st.success("✅ OCR funcionou!")
-            
-            # 🔽 NOVO: Checkbox mostrar/ocultar
-            mostrar_texto = st.checkbox("👁️ Mostrar texto reconhecido", value=False)
-            if mostrar_texto:
-                st.text_area("Texto completo:", texto, height=400, key="texto_area")
-            
-            # 🔍 Busca (sempre visível)
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                pergunta = st.text_input("💭 Pergunta sobre o capítulo:")
-            with col2:
-                buscar = st.button("🔍 Buscar", use_container_width=True)
-            
-            if buscar and pergunta:
-                resposta = buscar_no_texto(st.session_state.texto, pergunta)
-                st.markdown("**📝 Resposta encontrada:**")
-                st.write(resposta)
-                
-                # Limpar conversa
-                if st.button("🗑️ Nova pergunta"):
-                    st.rerun()
-else:
-    st.error("📁 materias/geografia/cap13-001-geografia.jpg")
+for coluna in colunas_numericas:
+    df[coluna] = pd.to_numeric(df[coluna])
 
-# ===== BOTÃO QUIZ AUTOMÁTICO =====
-if st.button("🎯 Criar Quiz de Estudo (5 questões)", use_container_width=True):
-    # Gera perguntas baseadas no texto reconhecido
-    palavras_chave = st.session_state.texto.lower().split()[:20]  # Primeiras palavras
-    temas = [' '.join(palavras_chave[i:i+3]) for i in range(0, 15, 3)]
-    
-    st.success("Quiz criado para este capítulo!")
-    st.info("**Exemplos de questões:**")
-    st.markdown("""
-    1. Qual o tipo de relevo mais comum no Brasil?
-    2. O que são planícies? 
-    3. Cite 3 exemplos de depressões
-    4. Qual % do território é planalto?
-    5. Onde fica o Planalto da Borborema?
-    """)
-    
-    st.caption("👆 Quiz interativo acima para praticar!")
+# NOVAS MÉTRICAS
+df['custo_kwh'] = df['valor'] / df['Kwh']
 
+df['impostos'] = df['pis/confins'] + df['icms']
+
+# ORDENA
+df = df.sort_values('data')
+
+# =========================
+# KPIs
+# =========================
+
+consumo_total = df['Kwh'].sum()
+
+valor_total = df['valor'].sum()
+
+media_mensal = df['Kwh'].mean()
+
+custo_medio = df['custo_kwh'].mean()
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric(
+    "Consumo Total",
+    f"{consumo_total:.0f} kWh"
+)
+
+col2.metric(
+    "Valor Total",
+    f"R$ {valor_total:.2f}"
+)
+
+col3.metric(
+    "Média Mensal",
+    f"{media_mensal:.0f} kWh"
+)
+
+col4.metric(
+    "Custo Médio kWh",
+    f"R$ {custo_medio:.2f}"
+)
+
+# =========================
+# GRÁFICO CONSUMO
+# =========================
+
+fig1 = px.line(
+    df,
+    x='data',
+    y='Kwh',
+    title='Consumo ao Longo do Tempo',
+    markers=True
+)
+
+st.plotly_chart(
+    fig1,
+    use_container_width=True
+)
+
+# =========================
+# GRÁFICO VALOR
+# =========================
+
+fig2 = px.bar(
+    df,
+    x='data',
+    y='valor',
+    title='Valor da Conta'
+)
+
+st.plotly_chart(
+    fig2,
+    use_container_width=True
+)
+
+# =========================
+# IMPOSTOS
+# =========================
+
+fig3 = px.pie(
+    values=[
+        df['icms'].sum(),
+        df['pis/confins'].sum(),
+        df['iluPublica'].sum(),
+        df['outros'].sum()
+    ],
+    names=[
+        'ICMS',
+        'PIS/COFINS',
+        'Iluminação Pública',
+        'Outros'
+    ],
+    title='Distribuição de Taxas'
+)
+
+st.plotly_chart(
+    fig3,
+    use_container_width=True
+)
+
+# =========================
+# TABELA
+# =========================
+
+st.subheader("📋 Dados")
+
+st.dataframe(
+    df,
+    use_container_width=True
+)

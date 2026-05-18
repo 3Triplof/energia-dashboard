@@ -19,7 +19,7 @@ def carregar_dados():
 
     client = gspread.authorize(creds)
 
-    planilha = client.open("NOME_DA_SUA_PLANILHA")
+    planilha = client.open("Energia")
 
     aba = planilha.sheet1
 

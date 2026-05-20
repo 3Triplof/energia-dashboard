@@ -45,7 +45,7 @@ colunas_numericas = [
 ]
 
 for coluna in colunas_numericas:
-    df[coluna] = pd.to_numeric(df[coluna])
+    df[coluna] = df[coluna].apply(converter_valor)
 
 df['custo_kwh'] = df['valor'] / df['Kwh']
 
@@ -93,22 +93,22 @@ col1, col2, col3, col4 = st.columns(4)
 
 col1.metric(
     "Consumo Total",
-    f"{consumo_total:.0f} kWh"
+    formatar_kwh(consumo_total)
 )
 
 col2.metric(
     "Valor Total",
-    f"R$ {valor_total:.2f}"
+    formatar_moeda(valor_total)
 )
 
 col3.metric(
     "Média Mensal",
-    f"{media_mensal:.0f} kWh"
+    formatar_kwh(media_mensal)
 )
 
 col4.metric(
     "Custo Médio kWh",
-    f"R$ {custo_medio:.2f}"
+    formatar_moeda(custo_medio)
 )
 
 # =========================

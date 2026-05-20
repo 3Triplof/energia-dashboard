@@ -1,3 +1,8 @@
+from utils.formatacao import (
+    converter_valor,
+    formatar_moeda,
+    formatar_percentual
+)
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -33,7 +38,7 @@ colunas_numericas = [
 ]
 
 for coluna in colunas_numericas:
-    df[coluna] = pd.to_numeric(df[coluna])
+    df[coluna] = df[coluna].apply(converter_valor)
 
 df['impostos'] = df['pis/confins'] + df['icms']
 
@@ -55,17 +60,17 @@ col1, col2, col3 = st.columns(3)
 
 col1.metric(
     "Total Pago",
-    f"R$ {valor_total:.2f}"
+    formatar_moeda(valor_total)
 )
 
 col2.metric(
     "Impostos",
-    f"R$ {total_impostos:.2f}"
+    formatar_moeda(total_impostos)
 )
 
 col3.metric(
     "% Impostos",
-    f"{percentual_impostos:.1f}%"
+    formatar_percentual(percentual_impostos)
 )
 
 # =========================

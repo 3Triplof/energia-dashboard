@@ -9,20 +9,29 @@ def converter_valor(valor):
     if pd.isna(valor):
         return 0
 
+    # Se já for número
+    if isinstance(valor, (int, float)):
+        return float(valor)
+
     valor = str(valor).strip()
 
     if valor == '':
         return 0
 
-    valor = valor.replace('.', '')
+    # Caso BR: 1.234,56
+    if ',' in valor and '.' in valor:
+        valor = valor.replace('.', '')
+        valor = valor.replace(',', '.')
 
-    valor = valor.replace(',', '.')
+    # Caso BR simples: 34,56
+    elif ',' in valor:
+        valor = valor.replace(',', '.')
 
     try:
         return float(valor)
+
     except:
         return 0
-
 
 # =========================
 # FORMATAÇÃO MOEDA

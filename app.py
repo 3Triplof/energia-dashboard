@@ -1,3 +1,9 @@
+from utils.formatacao import (
+    converter_valor,
+    formatar_moeda,
+    formatar_kwh,
+    formatar_percentual
+)
 import streamlit as st
 import pandas as pd
 import plotly.express as px

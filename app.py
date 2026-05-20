@@ -1,3 +1,8 @@
+from utils.graficos import (
+    estilizar_linha,
+    estilizar_barra,
+    estilizar_heatmap
+)
 from utils.formatacao import (
     converter_valor,
     formatar_moeda,
@@ -124,6 +129,8 @@ fig1 = px.line(
     title='Consumo ao Longo do Tempo'
 )
 
+fig1 = estilizar_linha(fig1)
+
 st.plotly_chart(
     fig1,
     use_container_width=True
@@ -142,6 +149,8 @@ fig2 = px.bar(
     text_auto=True,
     title='Comparação Anual de Consumo'
 )
+
+fig2 = estilizar_barra(fig2)
 
 st.plotly_chart(
     fig2,
@@ -166,6 +175,8 @@ fig3 = px.imshow(
     title='Heatmap de Consumo'
 )
 
+fig3 = estilizar_heatmap(fig3)
+
 st.plotly_chart(
     fig3,
     use_container_width=True
@@ -181,6 +192,8 @@ fig4 = px.bar(
     y='valor',
     title='Valor da Conta'
 )
+
+fig4 = estilizar_barra(fig4)
 
 st.plotly_chart(
     fig4,

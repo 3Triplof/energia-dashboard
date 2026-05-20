@@ -1,3 +1,7 @@
+from utils.graficos import (
+    estilizar_linha,
+    estilizar_pizza
+)
 from utils.formatacao import (
     converter_valor,
     formatar_moeda,
@@ -93,6 +97,8 @@ fig1 = px.pie(
     title='Distribuição Financeira'
 )
 
+fig1 = estilizar_pizza(fig1)
+
 st.plotly_chart(
     fig1,
     use_container_width=True
@@ -109,6 +115,8 @@ fig2 = px.line(
     markers=True,
     title='Evolução dos Impostos'
 )
+
+fig2 = estilizar_linha(fig2)
 
 st.plotly_chart(
     fig2,

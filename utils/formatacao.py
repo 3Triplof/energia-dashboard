@@ -2,53 +2,57 @@ import pandas as pd
 
 
 def converter_valor(valor):
-    if pd.isna(valor):
-        return 0.0
 
+    # Nulo
+    if pd.isna(valor):
+        return 0
+
+    # Já numérico
     if isinstance(valor, (int, float)):
         return float(valor)
 
-    texto = str(valor).strip()
-    if not texto:
-        return 0.0
+    valor = str(valor).strip()
 
-    texto = texto.replace("R$", "").strip()
+    if valor == '':
+        return 0
+
+    # Remove moeda e espaços
+    valor = (
+        valor
+        .replace('R$', '')
+        .replace(' ', '')
+    )
+
+    # =========================
+    # FORMATO BR
+    # Ex:
+    # 1.234,56
+    # =========================
+
+    if ',' in valor and '.' in valor:
+
+        valor = valor.replace('.', '')
+        valor = valor.replace(',', '.')
+
+    # =========================
+    # FORMATO BR SIMPLES
+    # Ex:
+    # 34,56
+    # =========================
+
+    elif ',' in valor:
+
+        valor = valor.replace(',', '.')
+
+    # =========================
+    # IMPORTANTE:
+    # NÃO remove ponto
+    # se já estiver correto:
+    # 34.03
+    # =========================
 
     try:
-        if "," in texto and "." in texto:
-            texto = texto.replace(".", "").replace(",", ".")
-        elif "," in texto:
-            texto = texto.replace(",", ".")
-        return float(texto)
-    except (ValueError, TypeError):
-        return 0.0
+        return float(valor)
 
-
-def formatar_moeda(valor):
-    if pd.isna(valor):
-        return "R$ 0,00"
-
-    try:
-        return f"R$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    except (ValueError, TypeError):
-        return "R$ 0,00"
-
-
-def formatar_kwh(valor):
-    if pd.isna(valor):
-        return "0 kWh"
-
-    try:
-        return f"{float(valor):,.0f} kWh".replace(",", ".")
-    except (ValueError, TypeError):
-        return "0 kWh"
-
-
-def formatar_percentual(valor):
-    if pd.isna(valor):
-        return "0,0%"
-
-    try:
-        return f"{float(valor):.1f}%".replace(".", ",")
-    except (ValueError, TypeError):
-        return "0,0%"
+    except:
+        return 0

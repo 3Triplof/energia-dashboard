@@ -75,7 +75,23 @@ def preparar_dados(df: pd.DataFrame) -> pd.DataFrame:
     df = df.sort_values("data")
     return df
 
+st.subheader("DEBUG")
 
+st.write(df[
+    [
+        "valor",
+        "pis/confins",
+        "icms",
+        "iluPublica",
+        "outros"
+    ]
+].head(20))
+
+st.write("TOTAL VALOR:", df["valor"].sum())
+
+st.write("TOTAL ICMS:", df["icms"].sum())
+
+st.write("TOTAL PIS
 # =========================
 # VALIDAÇÃO
 # =========================

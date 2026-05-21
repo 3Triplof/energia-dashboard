@@ -78,9 +78,7 @@ def validar_colunas(df: pd.DataFrame) -> None:
     ]
 
     if faltantes:
-        st.error(
-            f"Colunas ausentes na base: {', '.join(faltantes)}"
-        )
+        st.error(f"Colunas ausentes na base: {', '.join(faltantes)}")
         st.stop()
 
 
@@ -104,63 +102,34 @@ def preparar_dados(df: pd.DataFrame) -> pd.DataFrame:
         errors="coerce"
     )
 
-    df = df[
-        df["data"].notna()
-    ]
+    df = df[df["data"].notna()]
 
     # =========================
     # NUMÉRICOS
     # =========================
 
     for coluna in COLUNAS_NUMERICAS:
-
-        df[coluna] = (
-            df[coluna]
-            .map(converter_valor)
-        )
-
-        df[coluna] = pd.to_numeric(
-            df[coluna],
-            errors="coerce"
-        )
+        df[coluna] = df[coluna].map(converter_valor)
+        df[coluna] = pd.to_numeric(df[coluna], errors="coerce")
 
     # =========================
     # LIMPEZA
     # =========================
 
     for coluna in COLUNAS_NUMERICAS:
-        df[coluna] = (
-            df[coluna]
-            .fillna(0)
-        )
+        df[coluna] = df[coluna].fillna(0)
 
     # Remove contas inválidas
-    df = df[
-        df["valor"] > 0
-    ]
+    df = df[df["valor"] > 0]
 
     # =========================
     # CÁLCULOS
     # =========================
 
-    df["impostos"] = (
-        df["pis/confins"]
-        + df["icms"]
-    )
-
-    df["taxas_publicas"] = (
-        df["iluPublica"]
-    )
-
-    df["encargos"] = (
-        df["outros"]
-    )
-
-    df["energia"] = (
-        df["Kwh"]
-        * df["tarifa"]
-    )
-
+    df["impostos"] = df["pis/confins"] + df["icms"]
+    df["taxas_publicas"] = df["iluPublica"]
+    df["encargos"] = df["outros"]
+    df["energia"] = df["Kwh"] * df["tarifa"]
     df["custo_kwh"] = np.where(
         df["Kwh"] > 0,
         df["valor"] / df["Kwh"],
@@ -178,23 +147,14 @@ def preparar_dados(df: pd.DataFrame) -> pd.DataFrame:
 
 def validar_consistencia(df: pd.DataFrame) -> dict:
 
-    total_pago = (
-        df["valor"].sum()
-    )
-
-    total_impostos = (
-        df["impostos"].sum()
-    )
-
+    total_pago = df["valor"].sum()
+    total_impostos = df["impostos"].sum()
     percentual_impostos = (
         (total_impostos / total_pago) * 100
-        if total_pago > 0
-        else 0
+        if total_pago > 0 else 0
     )
 
-    inconsistente = (
-        total_impostos > total_pago
-    )
+    inconsistente = total_impostos > total_pago
 
     return {
         "total_pago": total_pago,
@@ -211,18 +171,12 @@ def validar_consistencia(df: pd.DataFrame) -> dict:
 def exibir_alertas(validacao: dict):
 
     if validacao["inconsistente"]:
-
         st.error(
             "Inconsistência detectada: "
-            "os impostos estão maiores "
-            "que o total pago."
+            "os impostos estão maiores que o total pago."
         )
-
     elif validacao["percentual_impostos"] > 100:
-
-        st.warning(
-            "Percentual de impostos acima de 100%."
-        )
+        st.warning("Percentual de impostos acima de 100%.")
 
 
 # =========================
@@ -231,139 +185,68 @@ def exibir_alertas(validacao: dict):
 
 def exibir_kpis(df: pd.DataFrame, validacao: dict):
 
-    total_pago = (
-        validacao["total_pago"]
-    )
-
-    total_impostos = (
-        validacao["total_impostos"]
-    )
-
-    total_taxas = (
-        df["taxas_publicas"].sum()
-    )
-
-    total_outros = (
-        df["encargos"].sum()
-    )
+    total_pago = validacao["total_pago"]
+    total_impostos = validacao["total_impostos"]
+    total_taxas = df["taxas_publicas"].sum()
+    total_encargos = df["encargos"].sum()
 
     col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric(
-        "Total Pago",
-        formatar_moeda(total_pago)
+    col1.metric("Total Pago", formatar_moeda(total_pago))
+    col2.metric("Impostos", formatar_moeda(total_impostos))
+    col3.metric("% Impostos", formatar_percentual(validacao["percentual_impostos"]))
+    col4.metric("Taxas + Outros", formatar_moeda(total_taxas + total_encargos))
+
+
+# =========================
+# RESUMO COMPACTO (TABELA)
+# =========================
+
+def exibir_resumo(df: pd.DataFrame, validacao: dict):
+
+    total_pago = validacao["total_pago"]
+    total_impostos = validacao["total_impostos"]
+    total_taxas = df["taxas_publicas"].sum()
+    total_encargos = df["encargos"].sum()
+    total_base = total_pago - total_impostos - total_taxas - total_encargos
+
+    resumo = pd.DataFrame(
+        {
+            "Componente": [
+                "Valor Base (Energia)",
+                "Impostos",
+                "Iluminação Pública",
+                "Outros Encargos",
+                "Total Pago",
+            ],
+            "Valor (R$)": [
+                formatar_moeda(total_base),
+                formatar_moeda(total_impostos),
+                formatar_moeda(total_taxas),
+                formatar_moeda(total_encargos),
+                formatar_moeda(total_pago),
+            ],
+            "% do Total": [
+                formatar_percentual((total_base / total_pago) * 100 if total_pago > 0 else 0),
+                formatar_percentual(validacao["percentual_impostos"]),
+                formatar_percentual((total_taxas / total_pago) * 100 if total_pago > 0 else 0),
+                formatar_percentual((total_encargos / total_pago) * 100 if total_pago > 0 else 0),
+                "100.0%",
+            ],
+        }
     )
 
-    col2.metric(
-        "Impostos",
-        formatar_moeda(total_impostos)
-    )
-
-    col3.metric(
-        "% Impostos",
-        formatar_percentual(
-            validacao["percentual_impostos"]
+    with st.expander("📊 Resumo financeiro detalhado", expanded=False):
+        st.markdown(
+            """
+            **Como a conta é composta:**  
+            - Valor base: energia pura, sem impostos/taxas.  
+            - Impostos: ICMS + PIS/COFINS.  
+            - Iluminação Pública: taxa específica de iluminação.  
+            - Outros Encargos: demais taxas/encargos.
+            """
         )
-    )
-
-    col4.metric(
-        "Taxas + Outros",
-        formatar_moeda(
-            total_taxas + total_outros
-        )
-    )
-
-
-# =========================
-# RESUMO
-# =========================
-
-def exibir_resumo(
-    df: pd.DataFrame,
-    validacao: dict
-):
-
-    st.info(
-        f"""
-💡 Do total pago em energia:
-
-- {formatar_percentual(validacao["percentual_impostos"])} corresponde a impostos
-- {formatar_moeda(df["taxas_publicas"].sum())} foram taxas de iluminação pública
-- {formatar_moeda(df["encargos"].sum())} foram outros encargos
-"""
-    )
-
-
-# =========================
-# DEBUG
-# =========================
-
-def exibir_debug(df: pd.DataFrame):
-
-    st.subheader("🛠 DEBUG")
-
-    st.write(
-        "Quantidade de linhas:",
-        len(df)
-    )
-
-    st.write(
-        "Colunas:",
-        df.columns.tolist()
-    )
-
-    st.write(
-        "Prévia numérica:"
-    )
-
-    st.dataframe(
-        df[
-            [
-                "valor",
-                "pis/confins",
-                "icms",
-                "iluPublica",
-                "outros",
-                "impostos"
-            ]
-        ].head(20),
-        use_container_width=True
-    )
-
-    st.write(
-        "TOTAL VALOR:",
-        df["valor"].sum()
-    )
-
-    st.write(
-        "TOTAL ICMS:",
-        df["icms"].sum()
-    )
-
-    st.write(
-        "TOTAL PIS/COFINS:",
-        df["pis/confins"].sum()
-    )
-
-    st.write(
-        "TOTAL IMPOSTOS:",
-        df["impostos"].sum()
-    )
-
-    st.write(
-        "MAIOR ICMS:",
-        df["icms"].max()
-    )
-
-    st.write(
-        "MAIOR PIS:",
-        df["pis/confins"].max()
-    )
-
-    st.write(
-        "MAIOR VALOR CONTA:",
-        df["valor"].max()
-    )
+        st.dataframe(resumo, use_container_width=True, hide_index=True)
 
 
 # =========================
@@ -377,28 +260,20 @@ def grafico_pizza(df: pd.DataFrame):
             "ICMS",
             "PIS/COFINS",
             "Iluminação Pública",
-            "Outros"
+            "Outros",
         ],
-
         "Valor": [
             df["icms"].sum(),
             df["pis/confins"].sum(),
             df["taxas_publicas"].sum(),
-            df["encargos"].sum()
+            df["encargos"].sum(),
         ]
     })
 
-    dados = dados[
-        dados["Valor"] > 0
-    ]
+    dados = dados[dados["Valor"] > 0]
 
     if dados.empty:
-
-        st.warning(
-            "Sem dados válidos "
-            "para o gráfico."
-        )
-
+        st.warning("Sem dados válidos para o gráfico.")
         return
 
     fig = px.pie(
@@ -410,10 +285,7 @@ def grafico_pizza(df: pd.DataFrame):
 
     fig = estilizar_pizza(fig)
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 # =========================
@@ -432,10 +304,7 @@ def grafico_evolucao_impostos(df):
 
     fig = estilizar_linha(fig)
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 # =========================
@@ -454,10 +323,7 @@ def grafico_evolucao_conta(df):
 
     fig = estilizar_linha(fig)
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 # =========================
@@ -466,9 +332,7 @@ def grafico_evolucao_conta(df):
 
 def exibir_tabela(df):
 
-    st.subheader(
-        "📋 Dados Financeiros"
-    )
+    st.subheader("📋 Dados Financeiros")
 
     colunas = [
         "data",
@@ -477,13 +341,10 @@ def exibir_tabela(df):
         "impostos",
         "taxas_publicas",
         "encargos",
-        "custo_kwh"
+        "custo_kwh",
     ]
 
-    st.dataframe(
-        df[colunas],
-        use_container_width=True
-    )
+    st.dataframe(df[colunas], use_container_width=True)
 
 
 # =========================
@@ -497,15 +358,8 @@ def main():
     df = preparar_dados(df)
 
     if df.empty:
-
-        st.warning(
-            "Nenhum dado válido encontrado."
-        )
-
+        st.warning("Nenhum dado válido encontrado.")
         st.stop()
-
-    # DEBUG
-    exibir_debug(df)
 
     # VALIDAÇÃO
     validacao = validar_consistencia(df)
@@ -515,7 +369,7 @@ def main():
     # KPIs
     exibir_kpis(df, validacao)
 
-    # RESUMO
+    # RESUMO COMPACTO
     exibir_resumo(df, validacao)
 
     # GRÁFICOS

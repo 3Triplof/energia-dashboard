@@ -46,7 +46,14 @@ def carregar():
 
 df = carregar()
 
+# Remove linhas sem consumo
+df = df[
+    df['Kwh'].notna()
+]
 
+df = df[
+    df['Kwh'] > 0
+]
 # =========================
 # TRATAMENTO
 # =========================

@@ -62,17 +62,11 @@ def preparar_dados(df: pd.DataFrame) -> pd.DataFrame:
     for coluna in COLUNAS_NUMERICAS:
         df[coluna] = pd.to_numeric(df[coluna].map(converter_valor), errors="coerce")
 
-    df["Kwh"] = df["Kwh"].fillna(0)
-    df["valor"] = df["valor"].fillna(0)
-    df["pis/confins"] = df["pis/confins"].fillna(0)
-    df["icms"] = df["icms"].fillna(0)
-    df["iluPublica"] = df["iluPublica"].fillna(0)
-    df["tarifa"] = df["tarifa"].fillna(0)
-    df["outros"] = df["outros"].fillna(0)
+    for coluna in COLUNAS_NUMERICAS:
+        df[coluna] = df[coluna].fillna(0)
 
-    df = df[df["Kwh"] > 0]
+    df = df[df["valor"] > 0]
 
-    df["energia"] = df["Kwh"] * df["tarifa"]
     df["impostos"] = df["pis/confins"] + df["icms"]
     df["taxas_publicas"] = df["iluPublica"]
     df["encargos"] = df["outros"]
@@ -83,49 +77,67 @@ def preparar_dados(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # =========================
-# KPIS
+# VALIDAÇÃO
 # =========================
 
-def calcular_kpis(df: pd.DataFrame) -> dict:
+def validar_consistencia(df: pd.DataFrame) -> dict:
     total_pago = df["valor"].sum()
-    total_energia = df["energia"].sum()
     total_impostos = df["impostos"].sum()
-    total_taxas = df["taxas_publicas"].sum()
-    total_outros = df["encargos"].sum()
 
     percentual_impostos = (total_impostos / total_pago * 100) if total_pago else 0
+    inconsistente = total_impostos > total_pago
 
     return {
         "total_pago": total_pago,
-        "total_energia": total_energia,
         "total_impostos": total_impostos,
-        "total_taxas": total_taxas,
-        "total_outros": total_outros,
         "percentual_impostos": percentual_impostos,
+        "inconsistente": inconsistente,
     }
 
 
-def exibir_kpis(kpis: dict) -> None:
+def exibir_alertas(validacao: dict) -> None:
+    if validacao["inconsistente"]:
+        st.error(
+            "Inconsistência detectada: o total de impostos está maior que o total pago. "
+            "Isso indica erro na base, na conversão dos valores ou nas fórmulas."
+        )
+    elif validacao["percentual_impostos"] > 100:
+        st.warning(
+            "Atenção: o percentual de impostos está acima de 100%. "
+            "Revise os dados de entrada."
+        )
+
+
+# =========================
+# KPIS
+# =========================
+
+def exibir_kpis(df: pd.DataFrame, validacao: dict) -> None:
+    total_pago = validacao["total_pago"]
+    total_impostos = validacao["total_impostos"]
+    total_taxas = df["taxas_publicas"].sum()
+    total_outros = df["encargos"].sum()
+
     col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("Total Pago", formatar_moeda(kpis["total_pago"]))
-    col2.metric("Energia Consumida", formatar_moeda(kpis["total_energia"]))
-    col3.metric("Impostos", formatar_moeda(kpis["total_impostos"]))
-    col4.metric("% Impostos", formatar_percentual(kpis["percentual_impostos"]))
+    col1.metric("Total Pago", formatar_moeda(total_pago))
+    col2.metric("Impostos", formatar_moeda(total_impostos))
+    col3.metric("% Impostos", formatar_percentual(validacao["percentual_impostos"]))
+    col4.metric("Taxas + Outros", formatar_moeda(total_taxas + total_outros))
 
 
 # =========================
 # RESUMO
 # =========================
 
-def exibir_resumo(kpis: dict) -> None:
+def exibir_resumo(df: pd.DataFrame, validacao: dict) -> None:
     st.info(
         f"""
 💡 Do total pago em energia:
 
-- {formatar_percentual(kpis["percentual_impostos"])} corresponde a impostos
-- {formatar_moeda(kpis["total_taxas"])} foram taxas de iluminação pública
-- {formatar_moeda(kpis["total_outros"])} foram outros encargos
+- {formatar_percentual(validacao["percentual_impostos"])} corresponde a impostos
+- {formatar_moeda(df["taxas_publicas"].sum())} foram taxas de iluminação pública
+- {formatar_moeda(df["encargos"].sum())} foram outros encargos
 """
     )
 
@@ -137,14 +149,12 @@ def exibir_resumo(kpis: dict) -> None:
 def grafico_pizza(df: pd.DataFrame) -> None:
     dados = pd.DataFrame({
         "Categoria": [
-            "Energia",
             "ICMS",
             "PIS/COFINS",
             "Iluminação Pública",
             "Outros"
         ],
         "Valor": [
-            df["energia"].sum(),
             df["icms"].sum(),
             df["pis/confins"].sum(),
             df["taxas_publicas"].sum(),
@@ -152,11 +162,17 @@ def grafico_pizza(df: pd.DataFrame) -> None:
         ]
     })
 
+    dados = dados[dados["Valor"] > 0]
+
+    if dados.empty:
+        st.warning("Sem dados válidos para o gráfico de composição.")
+        return
+
     fig = px.pie(
         dados,
         values="Valor",
         names="Categoria",
-        title="Composição da Conta de Energia"
+        title="Composição dos Encargos da Conta"
     )
     fig = estilizar_pizza(fig)
     st.plotly_chart(fig, use_container_width=True)
@@ -194,8 +210,8 @@ def exibir_tabela(df: pd.DataFrame) -> None:
     st.subheader("📋 Dados Financeiros")
 
     colunas_exibir = [
-        "data", "Kwh", "valor", "energia",
-        "impostos", "taxas_publicas", "encargos", "custo_kwh"
+        "data", "Kwh", "valor", "impostos",
+        "taxas_publicas", "encargos", "custo_kwh"
     ]
 
     st.dataframe(
@@ -216,10 +232,10 @@ def main():
         st.warning("Nenhum dado válido encontrado.")
         st.stop()
 
-    kpis = calcular_kpis(df)
-
-    exibir_kpis(kpis)
-    exibir_resumo(kpis)
+    validacao = validar_consistencia(df)
+    exibir_alertas(validacao)
+    exibir_kpis(df, validacao)
+    exibir_resumo(df, validacao)
     grafico_pizza(df)
     grafico_evolucao_impostos(df)
     grafico_evolucao_conta(df)

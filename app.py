@@ -1,25 +1,11 @@
-from utils.estatisticas import (
-    media_mensal,
-    media_anual,
-    custo_medio_kwh
-)
-
-from utils.graficos import (
-    estilizar_linha,
-    estilizar_barra,
-    estilizar_heatmap
-)
-
-from utils.formatacao import (
-    converter_valor,
-    formatar_moeda,
-    formatar_kwh
-)
-
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 
+from utils.estatisticas import media_mensal, media_anual, custo_medio_kwh
+from utils.graficos import estilizar_linha, estilizar_barra, estilizar_heatmap
+from utils.formatacao import converter_valor, formatar_moeda, formatar_kwh
 from services.sheets import carregar_dados
 
 
@@ -37,261 +23,231 @@ st.title("⚡ Dashboard de Energia")
 
 
 # =========================
-# CARREGAMENTO
+# CONSTANTES
 # =========================
 
-@st.cache_data(ttl=3600)
+COLUNAS_OBRIGATORIAS = [
+    "data", "Kwh", "valor", "pis/confins",
+    "icms", "iluPublica", "tarifa", "outros"
+]
+
+COLUNAS_NUMERICAS = [
+    "Kwh", "valor", "pis/confins",
+    "icms", "iluPublica", "tarifa", "outros"
+]
+
+MESES_PT = {
+    1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr",
+    5: "Mai", 6: "Jun", 7: "Jul", 8: "Ago",
+    9: "Set", 10: "Out", 11: "Nov", 12: "Dez"
+}
+
+MESES_ORDEM = [
+    "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+    "Jul", "Ago", "Set", "Out", "Nov", "Dez"
+]
+
+
+# =========================
+# DADOS
+# =========================
+
+@st.cache_data(ttl=3600, max_entries=10)
 def carregar():
     return carregar_dados()
 
-df = carregar()
 
-# Remove linhas sem consumo
-df = df[
-    df['Kwh'].notna()
-]
-
-df = df[
-    df['Kwh'] > 0
-]
-# =========================
-# TRATAMENTO
-# =========================
-
-df['data'] = pd.to_datetime(df['data'])
-
-# Padroniza para início do mês
-df['data'] = (
-    df['data']
-    .dt.to_period('M')
-    .dt.to_timestamp()
-)
-
-colunas_numericas = [
-    'Kwh',
-    'valor',
-    'pis/confins',
-    'icms',
-    'iluPublica',
-    'tarifa',
-    'outros'
-]
-
-for coluna in colunas_numericas:
-    df[coluna] = df[coluna].apply(converter_valor)
-
-# Custo real por kWh
-df['custo_kwh'] = (
-    df['valor'] / df['Kwh']
-)
-
-# Impostos
-df['impostos'] = (
-    df['pis/confins']
-    + df['icms']
-)
-
-# Ano
-df['ano'] = df['data'].dt.year
-
-# Mês numérico
-df['mes'] = df['data'].dt.month
-
-# Ordem correta dos meses
-meses_ordem = [
-    'Jan', 'Feb', 'Mar',
-    'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep',
-    'Oct', 'Nov', 'Dec'
-]
-
-df['mes_nome'] = pd.Categorical(
-    df['data'].dt.strftime('%b'),
-    categories=meses_ordem,
-    ordered=True
-)
-
-# Ordenação geral
-df = df.sort_values('data')
+def validar_colunas(df: pd.DataFrame) -> None:
+    faltantes = [col for col in COLUNAS_OBRIGATORIAS if col not in df.columns]
+    if faltantes:
+        st.error(f"Colunas ausentes na base: {', '.join(faltantes)}")
+        st.stop()
 
 
-# =========================
-# FILTROS
-# =========================
+def preparar_dados(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
 
-st.sidebar.header("Filtros")
+    validar_colunas(df)
 
-anos = sorted(
-    df['ano'].unique()
-)
+    df["data"] = pd.to_datetime(df["data"], format="%Y-%m", errors="coerce")
+    df = df[df["data"].notna()]
 
-anos_selecionados = st.sidebar.multiselect(
-    "Selecione os anos",
-    anos,
-    default=anos
-)
+    for coluna in COLUNAS_NUMERICAS:
+        df[coluna] = pd.to_numeric(df[coluna].map(converter_valor), errors="coerce")
 
-df_filtrado = df[
-    df['ano'].isin(anos_selecionados)
-]
+    df = df[df["Kwh"].fillna(0) > 0]
 
+    df["data"] = df["data"].dt.to_period("M").dt.to_timestamp()
+    df = df.sort_values("data")
 
-# =========================
-# KPIs
-# =========================
+    df["ano"] = df["data"].dt.year
+    df["mes"] = df["data"].dt.month
+    df["mes_nome"] = df["mes"].map(MESES_PT)
 
-consumo_total = (
-    df_filtrado['Kwh'].sum()
-)
+    df["custo_kwh"] = np.where(df["Kwh"] > 0, df["valor"] / df["Kwh"], np.nan)
+    df["impostos"] = df["pis/confins"].fillna(0) + df["icms"].fillna(0)
+    df["energia"] = df["Kwh"] * df["tarifa"].fillna(0)
 
-valor_total = (
-    df_filtrado['valor'].sum()
-)
-
-media_mensal_kwh = (
-    media_mensal(df_filtrado)
-)
-
-media_anual_kwh = (
-    media_anual(df_filtrado)
-)
-
-custo_medio = (
-    custo_medio_kwh(df_filtrado)
-)
-
-col1, col2, col3, col4, col5 = st.columns(5)
-
-col1.metric(
-    "Consumo Total",
-    formatar_kwh(consumo_total)
-)
-
-col2.metric(
-    "Valor Total",
-    formatar_moeda(valor_total)
-)
-
-col3.metric(
-    "Média Mensal",
-    formatar_kwh(media_mensal_kwh)
-)
-
-col4.metric(
-    "Custo Médio / kWh",
-    formatar_moeda(custo_medio)
-)
-
-col5.metric(
-    "Média Anual",
-    formatar_kwh(media_anual_kwh)
-)
+    return df
 
 
-# =========================
-# CONSUMO HISTÓRICO
-# =========================
+def filtrar_dados(df: pd.DataFrame) -> pd.DataFrame:
+    st.sidebar.header("Filtros")
+    anos = sorted(df["ano"].dropna().unique().tolist())
 
-fig1 = px.line(
-    df_filtrado,
-    x='data',
-    y='Kwh',
-    color='ano',
-    markers=True,
-    title='Consumo ao Longo do Tempo'
-)
-
-fig1 = estilizar_linha(fig1)
-
-st.plotly_chart(
-    fig1,
-    use_container_width=True
-)
-
-
-# =========================
-# COMPARAÇÃO ANUAL
-# =========================
-
-comparacao = (
-    df_filtrado
-    .groupby('ano')['Kwh']
-    .sum()
-    .reset_index()
-)
-
-fig2 = px.bar(
-    comparacao,
-    x='ano',
-    y='Kwh',
-    text_auto=True,
-    title='Comparação Anual de Consumo'
-)
-
-fig2 = estilizar_barra(fig2)
-
-st.plotly_chart(
-    fig2,
-    use_container_width=True
-)
-
-
-# =========================
-# HEATMAP
-# =========================
-
-heatmap = (
-    df_filtrado
-    .pivot_table(
-        values='Kwh',
-        index='ano',
-        columns='mes_nome',
-        aggfunc='sum'
+    anos_selecionados = st.sidebar.multiselect(
+        "Selecione os anos",
+        anos,
+        default=anos
     )
-    .fillna(0)
-)
 
-fig3 = px.imshow(
-    heatmap,
-    text_auto=True,
-    aspect='auto',
-    title='Heatmap de Consumo'
-)
+    df_filtrado = df[df["ano"].isin(anos_selecionados)].copy()
 
-fig3 = estilizar_heatmap(fig3)
+    if df_filtrado.empty:
+        st.warning("Nenhum dado encontrado para os filtros selecionados.")
+        st.stop()
 
-st.plotly_chart(
-    fig3,
-    use_container_width=True
-)
+    return df_filtrado
 
 
 # =========================
-# VALOR DA CONTA
+# KPIS
 # =========================
 
-fig4 = px.bar(
-    df_filtrado,
-    x='data',
-    y='valor',
-    title='Valor da Conta'
-)
+def exibir_kpis(df: pd.DataFrame) -> None:
+    consumo_total = df["Kwh"].sum()
+    valor_total = df["valor"].sum()
+    media_mensal_kwh = media_mensal(df)
+    media_anual_kwh = media_anual(df)
+    custo_medio = custo_medio_kwh(df)
+    maior_consumo = df["Kwh"].max()
+    menor_consumo = df["Kwh"].min()
 
-fig4 = estilizar_barra(fig4)
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Consumo Total", formatar_kwh(consumo_total))
+    col2.metric("Valor Total", formatar_moeda(valor_total))
+    col3.metric("Custo Médio / kWh", formatar_moeda(custo_medio))
 
-st.plotly_chart(
-    fig4,
-    use_container_width=True
-)
+    col4, col5, col6 = st.columns(3)
+    col4.metric("Média Mensal", formatar_kwh(media_mensal_kwh))
+    col5.metric("Média Anual", formatar_kwh(media_anual_kwh))
+    col6.metric("Maior Consumo", formatar_kwh(maior_consumo))
+
+    st.caption(f"Menor consumo no período: {formatar_kwh(menor_consumo)}")
+
+
+# =========================
+# GRAFICOS
+# =========================
+
+def grafico_consumo_historico(df: pd.DataFrame) -> None:
+    fig = px.line(
+        df,
+        x="data",
+        y="Kwh",
+        color="ano",
+        markers=True,
+        title="Consumo ao Longo do Tempo"
+    )
+    fig = estilizar_linha(fig)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def grafico_comparacao_anual(df: pd.DataFrame) -> None:
+    comparacao = df.groupby("ano", as_index=False)["Kwh"].sum()
+
+    fig = px.bar(
+        comparacao,
+        x="ano",
+        y="Kwh",
+        text_auto=True,
+        title="Comparação Anual de Consumo"
+    )
+    fig = estilizar_barra(fig)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def grafico_heatmap(df: pd.DataFrame) -> None:
+    heatmap = (
+        df.pivot_table(
+            values="Kwh",
+            index="ano",
+            columns="mes_nome",
+            aggfunc="sum"
+        )
+        .reindex(columns=MESES_ORDEM)
+        .fillna(0)
+    )
+
+    fig = px.imshow(
+        heatmap,
+        text_auto=True,
+        aspect="auto",
+        title="Heatmap de Consumo"
+    )
+    fig = estilizar_heatmap(fig)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def grafico_valor_conta(df: pd.DataFrame) -> None:
+    fig = px.bar(
+        df,
+        x="data",
+        y="valor",
+        title="Valor da Conta"
+    )
+    fig = estilizar_barra(fig)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def grafico_custo_kwh(df: pd.DataFrame) -> None:
+    fig = px.line(
+        df,
+        x="data",
+        y="custo_kwh",
+        markers=True,
+        title="Evolução do Custo do kWh"
+    )
+    fig = estilizar_linha(fig)
+    st.plotly_chart(fig, use_container_width=True)
 
 
 # =========================
 # TABELA
 # =========================
 
-st.subheader("📋 Dados")
+def exibir_tabela(df: pd.DataFrame) -> None:
+    st.subheader("📋 Dados")
 
-st.dataframe(
-    df_filtrado,
-    use_container_width=True
-)
+    colunas_exibir = [
+        "data", "ano", "mes_nome",
+        "Kwh", "valor", "custo_kwh",
+        "tarifa", "impostos"
+    ]
+
+    st.dataframe(
+        df[colunas_exibir].sort_values("data"),
+        use_container_width=True
+    )
+
+
+# =========================
+# MAIN
+# =========================
+
+def main():
+    df = carregar()
+    df = preparar_dados(df)
+    df_filtrado = filtrar_dados(df)
+
+    exibir_kpis(df_filtrado)
+    grafico_consumo_historico(df_filtrado)
+    grafico_comparacao_anual(df_filtrado)
+    grafico_heatmap(df_filtrado)
+    grafico_valor_conta(df_filtrado)
+    grafico_custo_kwh(df_filtrado)
+    exibir_tabela(df_filtrado)
+
+
+if __name__ == "__main__":
+    main()

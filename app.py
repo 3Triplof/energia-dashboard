@@ -73,23 +73,18 @@ def preparar_dados(df: pd.DataFrame) -> pd.DataFrame:
     df = df[df["data"].notna()]
 
     for coluna in COLUNAS_NUMERICAS:
-        df[coluna] = pd.to_numeric(df[coluna].map(converter_valor), errors="coerce")
 
-    df = df[df["Kwh"].fillna(0) > 0]
+    df[coluna] = (
+        df[coluna]
+        .astype(str)
+        .str.replace('.', '', regex=False)
+        .str.replace(',', '.', regex=False)
+    )
 
-    df["data"] = df["data"].dt.to_period("M").dt.to_timestamp()
-    df = df.sort_values("data")
-
-    df["ano"] = df["data"].dt.year
-    df["mes"] = df["data"].dt.month
-    df["mes_nome"] = df["mes"].map(MESES_PT)
-
-    df["custo_kwh"] = np.where(df["Kwh"] > 0, df["valor"] / df["Kwh"], np.nan)
-    df["impostos"] = df["pis/confins"].fillna(0) + df["icms"].fillna(0)
-    df["energia"] = df["Kwh"] * df["tarifa"].fillna(0)
-
-    return df
-
+    df[coluna] = pd.to_numeric(
+        df[coluna],
+        errors='coerce'
+    )
 
 def filtrar_dados(df: pd.DataFrame) -> pd.DataFrame:
     st.sidebar.header("Filtros")

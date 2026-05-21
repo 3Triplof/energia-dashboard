@@ -1,6 +1,10 @@
 import pandas as pd
 
 
+# =========================
+# CONVERSÃO
+# =========================
+
 def converter_valor(valor):
 
     # Nulo
@@ -25,7 +29,6 @@ def converter_valor(valor):
 
     # =========================
     # FORMATO BR
-    # Ex:
     # 1.234,56
     # =========================
 
@@ -35,8 +38,7 @@ def converter_valor(valor):
         valor = valor.replace(',', '.')
 
     # =========================
-    # FORMATO BR SIMPLES
-    # Ex:
+    # FORMATO:
     # 34,56
     # =========================
 
@@ -44,15 +46,35 @@ def converter_valor(valor):
 
         valor = valor.replace(',', '.')
 
-    # =========================
-    # IMPORTANTE:
-    # NÃO remove ponto
-    # se já estiver correto:
-    # 34.03
-    # =========================
-
     try:
         return float(valor)
 
     except:
         return 0
+
+
+# =========================
+# FORMATAÇÕES
+# =========================
+
+def formatar_moeda(valor):
+
+    return (
+        f'R$ {valor:,.2f}'
+        .replace(',', 'X')
+        .replace('.', ',')
+        .replace('X', '.')
+    )
+
+
+def formatar_kwh(valor):
+
+    return (
+        f'{valor:,.0f} kWh'
+        .replace(',', '.')
+    )
+
+
+def formatar_percentual(valor):
+
+    return f'{valor:.1f}%'

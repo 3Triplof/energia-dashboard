@@ -1,64 +1,54 @@
 import pandas as pd
 
-# =========================
-# CONVERSÃO BR
-# =========================
 
 def converter_valor(valor):
-
     if pd.isna(valor):
-        return 0
+        return 0.0
 
-    # Se já for número
     if isinstance(valor, (int, float)):
         return float(valor)
 
-    valor = str(valor).strip()
+    texto = str(valor).strip()
+    if not texto:
+        return 0.0
 
-    if valor == '':
-        return 0
-
-    # Caso BR: 1.234,56
-    if ',' in valor and '.' in valor:
-        valor = valor.replace('.', '')
-        valor = valor.replace(',', '.')
-
-    # Caso BR simples: 34,56
-    elif ',' in valor:
-        valor = valor.replace(',', '.')
+    texto = texto.replace("R$", "").strip()
 
     try:
-        return float(valor)
+        if "," in texto and "." in texto:
+            texto = texto.replace(".", "").replace(",", ".")
+        elif "," in texto:
+            texto = texto.replace(",", ".")
+        return float(texto)
+    except (ValueError, TypeError):
+        return 0.0
 
-    except:
-        return 0
-
-# =========================
-# FORMATAÇÃO MOEDA
-# =========================
 
 def formatar_moeda(valor):
+    if pd.isna(valor):
+        return "R$ 0,00"
 
-    return f"R$ {valor:,.2f}"\
-        .replace(",", "X")\
-        .replace(".", ",")\
-        .replace("X", ".")
+    try:
+        return f"R$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except (ValueError, TypeError):
+        return "R$ 0,00"
 
-
-# =========================
-# FORMATAÇÃO KWH
-# =========================
 
 def formatar_kwh(valor):
+    if pd.isna(valor):
+        return "0 kWh"
 
-    return f"{valor:,.0f} kWh"\
-        .replace(",", ".")
+    try:
+        return f"{float(valor):,.0f} kWh".replace(",", ".")
+    except (ValueError, TypeError):
+        return "0 kWh"
 
-
-# =========================
-# FORMATAÇÃO %
-# =========================
 
 def formatar_percentual(valor):
+    if pd.isna(valor):
+        return "0,0%"
 
-    return f"{valor:.1f}%"
+    try:
+        return f"{float(valor):.1f}%".replace(".", ",")
+    except (ValueError, TypeError):
+        return "0,0%"

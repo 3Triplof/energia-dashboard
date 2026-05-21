@@ -1,3 +1,8 @@
+from utils.estatisticas import (
+    media_mensal,
+    media_anual,
+    custo_medio_kwh
+)
 from utils.graficos import (
     estilizar_linha,
     estilizar_barra,
@@ -90,20 +95,15 @@ consumo_total = df_filtrado['Kwh'].sum()
 
 valor_total = df_filtrado['valor'].sum()
 
-# =========================
-# MÉDIA MENSAL REAL
-# =========================
+media_mensal_kwh = media_mensal(df_filtrado)
 
-meses_com_dados = len(df_filtrado)
+media_anual_kwh = media_anual(df_filtrado)
 
-media_mensal = (
-    df_filtrado['Kwh'].sum()
-    / meses_com_dados
-)
+custo_medio = custo_medio_kwh(df_filtrado)
 
 custo_medio = df_filtrado['custo_kwh'].mean()
 
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5 = st.columns(5)
 
 col1.metric(
     "Consumo Total",
@@ -117,14 +117,17 @@ col2.metric(
 
 col3.metric(
     "Média Mensal",
-    formatar_kwh(media_mensal)
+    formatar_kwh(media_mensal_kwh)
 )
 
 col4.metric(
     "Custo Médio kWh",
     formatar_moeda(custo_medio)
 )
-
+col5.metric(
+    "Média Anual",
+    formatar_kwh(media_anual_kwh)
+)
 # =========================
 # CONSUMO HISTÓRICO
 # =========================

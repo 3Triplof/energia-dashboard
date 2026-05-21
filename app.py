@@ -114,11 +114,7 @@ def validar_colunas(df: pd.DataFrame):
     ]
 
     if faltantes:
-
-        st.error(
-            f"Colunas ausentes: {', '.join(faltantes)}"
-        )
-
+        st.error(f"Colunas ausentes: {', '.join(faltantes)}")
         st.stop()
 
 
@@ -142,21 +138,13 @@ def preparar_dados(df: pd.DataFrame) -> pd.DataFrame:
         errors="coerce"
     )
 
-    df = df[
-        df["data"].notna()
-    ]
+    df = df[df["data"].notna()]
 
     # =========================
     # CONVERSÃO NUMÉRICA
     # =========================
 
     for coluna in COLUNAS_NUMERICAS:
-
-        st.write(
-            f"ANTES {coluna}",
-            df[coluna].head(5).tolist()
-        )
-
         df[coluna] = (
             df[coluna]
             .astype(str)
@@ -171,34 +159,20 @@ def preparar_dados(df: pd.DataFrame) -> pd.DataFrame:
             errors="coerce"
         )
 
-        st.write(
-            f"DEPOIS {coluna}",
-            df[coluna].head(5).tolist()
-        )
-
     # =========================
     # LIMPEZA
     # =========================
 
     for coluna in COLUNAS_NUMERICAS:
+        df[coluna] = df[coluna].fillna(0)
 
-        df[coluna] = (
-            df[coluna]
-            .fillna(0)
-        )
-
-    df = df[
-        df["Kwh"] > 0
-    ]
+    df = df[df["Kwh"] > 0]
 
     # =========================
     # MÉTRICAS
     # =========================
 
-    df["impostos"] = (
-        df["pis/confins"]
-        + df["icms"]
-    )
+    df["impostos"] = df["pis/confins"] + df["icms"]
 
     df["custo_kwh"] = np.where(
         df["Kwh"] > 0,
@@ -206,60 +180,11 @@ def preparar_dados(df: pd.DataFrame) -> pd.DataFrame:
         np.nan
     )
 
-    df["ano"] = (
-        df["data"]
-        .dt.year
-    )
-
-    df["mes"] = (
-        df["data"]
-        .dt.month
-    )
-
-    df["mes_nome"] = (
-        df["mes"]
-        .map(MESES_PT)
-    )
+    df["ano"] = df["data"].dt.year
+    df["mes"] = df["data"].dt.month
+    df["mes_nome"] = df["mes"].map(MESES_PT)
 
     df = df.sort_values("data")
-
-    # =========================
-    # DEBUG FINAL
-    # =========================
-
-    st.subheader("🛠 DEBUG FINAL")
-
-    st.dataframe(
-        df[
-            [
-                "valor",
-                "pis/confins",
-                "icms",
-                "impostos"
-            ]
-        ].head(10),
-        use_container_width=True
-    )
-
-    st.write(
-        "TOTAL VALOR:",
-        df["valor"].sum()
-    )
-
-    st.write(
-        "TOTAL ICMS:",
-        df["icms"].sum()
-    )
-
-    st.write(
-        "TOTAL PIS:",
-        df["pis/confins"].sum()
-    )
-
-    st.write(
-        "TOTAL IMPOSTOS:",
-        df["impostos"].sum()
-    )
 
     return df
 
@@ -272,12 +197,7 @@ def filtrar_dados(df: pd.DataFrame):
 
     st.sidebar.header("Filtros")
 
-    anos = sorted(
-        df["ano"]
-        .dropna()
-        .unique()
-        .tolist()
-    )
+    anos = sorted(df["ano"].dropna().unique().tolist())
 
     anos_selecionados = st.sidebar.multiselect(
         "Selecione os anos",
@@ -285,17 +205,10 @@ def filtrar_dados(df: pd.DataFrame):
         default=anos
     )
 
-    df_filtrado = df[
-        df["ano"]
-        .isin(anos_selecionados)
-    ].copy()
+    df_filtrado = df[df["ano"].isin(anos_selecionados)].copy()
 
     if df_filtrado.empty:
-
-        st.warning(
-            "Nenhum dado encontrado."
-        )
-
+        st.warning("Nenhum dado encontrado.")
         st.stop()
 
     return df_filtrado
@@ -307,75 +220,34 @@ def filtrar_dados(df: pd.DataFrame):
 
 def exibir_kpis(df: pd.DataFrame):
 
-    consumo_total = (
-        df["Kwh"]
-        .sum()
+    valor_total = df["valor"].sum()
+    impostos_total = df["impostos"].sum()
+    pct_impostos = (
+        (impostos_total / valor_total * 100)
+        if valor_total > 0 else 0
     )
 
-    valor_total = (
-        df["valor"]
-        .sum()
-    )
+    consumo_total = df["Kwh"].sum()
+    media_mensal_kwh = media_mensal(df)
+    media_anual_kwh = media_anual(df)
+    custo_medio = custo_medio_kwh(df)
+    maior_consumo = df["Kwh"].max()
+    menor_consumo = df["Kwh"].min()
 
-    media_mensal_kwh = (
-        media_mensal(df)
-    )
+    col1, col2, col3, col4 = st.columns(4)
 
-    media_anual_kwh = (
-        media_anual(df)
-    )
+    col1.metric("Consumo Total", formatar_kwh(consumo_total))
+    col2.metric("Valor Total", formatar_moeda(valor_total))
+    col3.metric("Custo Médio / kWh", formatar_moeda(custo_medio))
+    col4.metric("Percentual de Impostos", f"{pct_impostos:.1f}%")
 
-    custo_medio = (
-        custo_medio_kwh(df)
-    )
+    col5, col6 = st.columns(2)
+    col5.metric("Média Mensal", formatar_kwh(media_mensal_kwh))
+    col6.metric("Média Anual", formatar_kwh(media_anual_kwh))
 
-    maior_consumo = (
-        df["Kwh"]
-        .max()
-    )
-
-    menor_consumo = (
-        df["Kwh"]
-        .min()
-    )
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(
-        "Consumo Total",
-        formatar_kwh(consumo_total)
-    )
-
-    col2.metric(
-        "Valor Total",
-        formatar_moeda(valor_total)
-    )
-
-    col3.metric(
-        "Custo Médio / kWh",
-        formatar_moeda(custo_medio)
-    )
-
-    col4, col5, col6 = st.columns(3)
-
-    col4.metric(
-        "Média Mensal",
-        formatar_kwh(media_mensal_kwh)
-    )
-
-    col5.metric(
-        "Média Anual",
-        formatar_kwh(media_anual_kwh)
-    )
-
-    col6.metric(
-        "Maior Consumo",
-        formatar_kwh(maior_consumo)
-    )
-
-    st.caption(
-        f"Menor consumo no período: {formatar_kwh(menor_consumo)}"
-    )
+    col7, col8 = st.columns(2)
+    col7.metric("Maior Consumo", formatar_kwh(maior_consumo))
+    col8.metric("Menor Consumo", formatar_kwh(menor_consumo))
 
 
 # =========================
@@ -395,10 +267,7 @@ def grafico_consumo_historico(df):
 
     fig = estilizar_linha(fig)
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def grafico_comparacao_anual(df):
@@ -419,10 +288,7 @@ def grafico_comparacao_anual(df):
 
     fig = estilizar_barra(fig)
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def grafico_heatmap(df):
@@ -447,10 +313,7 @@ def grafico_heatmap(df):
 
     fig = estilizar_heatmap(fig)
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def grafico_valor_conta(df):
@@ -464,10 +327,7 @@ def grafico_valor_conta(df):
 
     fig = estilizar_barra(fig)
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def grafico_custo_kwh(df):
@@ -482,10 +342,7 @@ def grafico_custo_kwh(df):
 
     fig = estilizar_linha(fig)
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 # =========================
@@ -508,8 +365,7 @@ def exibir_tabela(df):
     ]
 
     st.dataframe(
-        df[colunas_exibir]
-        .sort_values("data"),
+        df[colunas_exibir].sort_values("data"),
         use_container_width=True
     )
 
@@ -528,12 +384,14 @@ def main():
 
     exibir_kpis(df_filtrado)
 
+    st.subheader("📊 Evolução")
     grafico_consumo_historico(df_filtrado)
 
     grafico_comparacao_anual(df_filtrado)
 
     grafico_heatmap(df_filtrado)
 
+    st.subheader("💰 Finanças")
     grafico_valor_conta(df_filtrado)
 
     grafico_custo_kwh(df_filtrado)

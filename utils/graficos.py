@@ -3,12 +3,7 @@ import plotly.io as pio
 pio.templates.default = "plotly_dark"
 
 
-def aplicar_layout(
-    fig,
-    height=500,
-    template="plotly_dark",
-    showlegend=True
-):
+def aplicar_layout(fig, height=500, template="plotly_dark", showlegend=True):
     fig.update_layout(
         template=template,
         height=height,
@@ -59,6 +54,6 @@ def estilizar_pizza(fig, donut=False):
 
 def estilizar_heatmap(fig):
     fig.update_layout(
-        coloraxis_colorbar=dict(title="Consumo"),
+        coloraxis_colorbar=dict(title="Consumo")
     )
     return aplicar_layout(fig)

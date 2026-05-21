@@ -5,13 +5,23 @@ import pandas as pd
 # CONVERSÃO
 # =========================
 
+import pandas as pd
+import re
+
+
 def converter_valor(valor):
 
-    # Nulo
+    # =========================
+    # NULO
+    # =========================
+
     if pd.isna(valor):
         return 0
 
-    # Já numérico
+    # =========================
+    # JÁ NUMÉRICO
+    # =========================
+
     if isinstance(valor, (int, float)):
         return float(valor)
 
@@ -20,7 +30,7 @@ def converter_valor(valor):
     if valor == '':
         return 0
 
-    # Remove moeda e espaços
+    # Remove moeda/espaços
     valor = (
         valor
         .replace('R$', '')
@@ -28,30 +38,38 @@ def converter_valor(valor):
     )
 
     # =========================
-    # FORMATO BR
+    # CASO:
     # 1.234,56
+    # (milhar BR)
     # =========================
 
-    if ',' in valor and '.' in valor:
+    if re.match(r'^\d{1,3}(\.\d{3})*,\d+$', valor):
 
         valor = valor.replace('.', '')
         valor = valor.replace(',', '.')
 
     # =========================
-    # FORMATO:
-    # 34,56
+    # CASO:
+    # 17,23
+    # decimal BR
     # =========================
 
-    elif ',' in valor:
+    elif ',' in valor and '.' not in valor:
 
         valor = valor.replace(',', '.')
+
+    # =========================
+    # CASO:
+    # 17.23
+    # decimal correto
+    # NÃO FAZ NADA
+    # =========================
 
     try:
         return float(valor)
 
     except:
         return 0
-
 
 # =========================
 # FORMATAÇÕES

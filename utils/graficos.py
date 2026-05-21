@@ -1,86 +1,64 @@
-# =========================
-# CONFIGURAÇÕES GLOBAIS
-# =========================
+import plotly.io as pio
 
-def aplicar_layout(fig):
+pio.templates.default = "plotly_dark"
 
+
+def aplicar_layout(
+    fig,
+    height=500,
+    template="plotly_dark",
+    showlegend=True
+):
     fig.update_layout(
-
-        template='plotly_dark',
-
-        height=500,
-
-        margin=dict(
-            l=20,
-            r=20,
-            t=60,
-            b=20
-        ),
-
-        hovermode='x unified',
-
-        title={
-            'x': 0.02,
-            'xanchor': 'left'
-        },
-
+        template=template,
+        height=height,
+        margin=dict(l=20, r=20, t=60, b=20),
+        hovermode="x unified",
+        title=dict(x=0.02, xanchor="left"),
         legend=dict(
-            orientation='h',
-            yanchor='bottom',
+            orientation="h",
+            yanchor="bottom",
             y=1.02,
-            xanchor='right',
+            xanchor="right",
             x=1
-        )
+        ),
+        showlegend=showlegend
     )
-
     return fig
 
 
-# =========================
-# ESTILO LINHA
-# =========================
-
 def estilizar_linha(fig):
-
     fig.update_traces(
-        mode='lines+markers',
+        mode="lines+markers",
         line=dict(width=3),
         marker=dict(size=8)
     )
-
     return aplicar_layout(fig)
 
-
-# =========================
-# ESTILO BARRAS
-# =========================
 
 def estilizar_barra(fig):
-
     fig.update_traces(
-        textposition='outside'
+        textposition="outside",
+        cliponaxis=False
     )
-
     return aplicar_layout(fig)
 
 
-# =========================
-# ESTILO PIZZA
-# =========================
+def estilizar_pizza(fig, donut=False):
+    if donut:
+        fig.update_traces(
+            textinfo="percent+label",
+            hole=0.45
+        )
+    else:
+        fig.update_traces(
+            textinfo="percent+label"
+        )
+    return aplicar_layout(fig, showlegend=True)
 
-def estilizar_pizza(fig):
-
-    fig.update_traces(
-        textinfo='percent+label'
-    )
-
-    return aplicar_layout(fig)
-
-
-# =========================
-# ESTILO HEATMAP
-# =========================
 
 def estilizar_heatmap(fig):
-
+    fig.update_layout(
+        coloraxis_colorbar=dict(title="Consumo"),
+    )
     return aplicar_layout(fig)

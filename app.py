@@ -90,7 +90,16 @@ consumo_total = df_filtrado['Kwh'].sum()
 
 valor_total = df_filtrado['valor'].sum()
 
-media_mensal = df_filtrado['Kwh'].mean()
+# =========================
+# MÉDIA MENSAL REAL
+# =========================
+
+meses_com_dados = len(df_filtrado)
+
+media_mensal = (
+    df_filtrado['Kwh'].sum()
+    / meses_com_dados
+)
 
 custo_medio = df_filtrado['custo_kwh'].mean()
 

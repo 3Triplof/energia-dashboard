@@ -7,8 +7,13 @@ import pandas as pd
 
 def media_mensal(df, coluna='Kwh'):
 
+    # Remove linhas inválidas
+    df_valido = df[
+        df[coluna] > 0
+    ].copy()
+
     meses_unicos = (
-        df['data']
+        df_valido['data']
         .dt.to_period('M')
         .nunique()
     )
@@ -16,8 +21,10 @@ def media_mensal(df, coluna='Kwh'):
     if meses_unicos == 0:
         return 0
 
-    return df[coluna].sum() / meses_unicos
-
+    return (
+        df_valido[coluna].sum()
+        / meses_unicos
+    )
 
 # =========================
 # MÉDIA ANUAL
@@ -25,9 +32,13 @@ def media_mensal(df, coluna='Kwh'):
 
 def media_anual(df, coluna='Kwh'):
 
+    df_valido = df[
+        df[coluna] > 0
+    ].copy()
+
     anual = (
-        df.groupby(
-            df['data'].dt.year
+        df_valido.groupby(
+            df_valido['data'].dt.year
         )[coluna]
         .sum()
     )

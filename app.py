@@ -3,22 +3,29 @@ from utils.estatisticas import (
     media_anual,
     custo_medio_kwh
 )
+
 from utils.graficos import (
     estilizar_linha,
     estilizar_barra,
     estilizar_heatmap
 )
+
 from utils.formatacao import (
     converter_valor,
     formatar_moeda,
-    formatar_kwh,
-    formatar_percentual
+    formatar_kwh
 )
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 
 from services.sheets import carregar_dados
+
+
+# =========================
+# CONFIG
+# =========================
 
 st.set_page_config(
     page_title="Dashboard Energia",
@@ -27,6 +34,7 @@ st.set_page_config(
 )
 
 st.title("⚡ Dashboard de Energia")
+
 
 # =========================
 # CARREGAMENTO
@@ -38,11 +46,19 @@ def carregar():
 
 df = carregar()
 
+
 # =========================
 # TRATAMENTO
 # =========================
 
 df['data'] = pd.to_datetime(df['data'])
+
+# Padroniza para início do mês
+df['data'] = (
+    df['data']
+    .dt.to_period('M')
+    .dt.to_timestamp()
+)
 
 colunas_numericas = [
     'Kwh',
@@ -57,17 +73,40 @@ colunas_numericas = [
 for coluna in colunas_numericas:
     df[coluna] = df[coluna].apply(converter_valor)
 
-df['custo_kwh'] = df['valor'] / df['Kwh']
+# Custo real por kWh
+df['custo_kwh'] = (
+    df['valor'] / df['Kwh']
+)
 
-df['impostos'] = df['pis/confins'] + df['icms']
+# Impostos
+df['impostos'] = (
+    df['pis/confins']
+    + df['icms']
+)
 
+# Ano
 df['ano'] = df['data'].dt.year
 
+# Mês numérico
 df['mes'] = df['data'].dt.month
 
-df['mes_nome'] = df['data'].dt.strftime('%b')
+# Ordem correta dos meses
+meses_ordem = [
+    'Jan', 'Feb', 'Mar',
+    'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep',
+    'Oct', 'Nov', 'Dec'
+]
 
+df['mes_nome'] = pd.Categorical(
+    df['data'].dt.strftime('%b'),
+    categories=meses_ordem,
+    ordered=True
+)
+
+# Ordenação geral
 df = df.sort_values('data')
+
 
 # =========================
 # FILTROS
@@ -75,7 +114,9 @@ df = df.sort_values('data')
 
 st.sidebar.header("Filtros")
 
-anos = sorted(df['ano'].unique())
+anos = sorted(
+    df['ano'].unique()
+)
 
 anos_selecionados = st.sidebar.multiselect(
     "Selecione os anos",
@@ -87,21 +128,30 @@ df_filtrado = df[
     df['ano'].isin(anos_selecionados)
 ]
 
+
 # =========================
 # KPIs
 # =========================
 
-consumo_total = df_filtrado['Kwh'].sum()
+consumo_total = (
+    df_filtrado['Kwh'].sum()
+)
 
-valor_total = df_filtrado['valor'].sum()
+valor_total = (
+    df_filtrado['valor'].sum()
+)
 
-media_mensal_kwh = media_mensal(df_filtrado)
+media_mensal_kwh = (
+    media_mensal(df_filtrado)
+)
 
-media_anual_kwh = media_anual(df_filtrado)
+media_anual_kwh = (
+    media_anual(df_filtrado)
+)
 
-custo_medio = custo_medio_kwh(df_filtrado)
-
-custo_medio = df_filtrado['custo_kwh'].mean()
+custo_medio = (
+    custo_medio_kwh(df_filtrado)
+)
 
 col1, col2, col3, col4, col5 = st.columns(5)
 
@@ -121,13 +171,16 @@ col3.metric(
 )
 
 col4.metric(
-    "Custo Médio kWh",
+    "Custo Médio / kWh",
     formatar_moeda(custo_medio)
 )
+
 col5.metric(
     "Média Anual",
     formatar_kwh(media_anual_kwh)
 )
+
+
 # =========================
 # CONSUMO HISTÓRICO
 # =========================
@@ -148,11 +201,17 @@ st.plotly_chart(
     use_container_width=True
 )
 
+
 # =========================
 # COMPARAÇÃO ANUAL
 # =========================
 
-comparacao = df_filtrado.groupby('ano')['Kwh'].sum().reset_index()
+comparacao = (
+    df_filtrado
+    .groupby('ano')['Kwh']
+    .sum()
+    .reset_index()
+)
 
 fig2 = px.bar(
     comparacao,
@@ -169,21 +228,26 @@ st.plotly_chart(
     use_container_width=True
 )
 
+
 # =========================
 # HEATMAP
 # =========================
 
-heatmap = df_filtrado.pivot_table(
-    values='Kwh',
-    index='ano',
-    columns='mes_nome',
-    aggfunc='sum'
+heatmap = (
+    df_filtrado
+    .pivot_table(
+        values='Kwh',
+        index='ano',
+        columns='mes_nome',
+        aggfunc='sum'
+    )
+    .fillna(0)
 )
 
 fig3 = px.imshow(
     heatmap,
     text_auto=True,
-    aspect="auto",
+    aspect='auto',
     title='Heatmap de Consumo'
 )
 
@@ -193,6 +257,7 @@ st.plotly_chart(
     fig3,
     use_container_width=True
 )
+
 
 # =========================
 # VALOR DA CONTA
@@ -211,6 +276,7 @@ st.plotly_chart(
     fig4,
     use_container_width=True
 )
+
 
 # =========================
 # TABELA
